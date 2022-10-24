@@ -170,6 +170,11 @@ class Tag:
         return ">"
 
     @property
+    def doctype(self) -> str:
+        """Returns and HTML doctype tag including its possible attributes."""
+        return f"<!DOCTYPE{self.attributes}>\n"
+
+    @property
     def open_tag(self) -> str:
         """
         Returns element HTML opening tag including its possible attributes.
@@ -469,6 +474,7 @@ class Tag:
             HTML (as returned from ``_is_html``). Else it will return a string
             including all the attributes.
         """
+
         if self._is_html:
             attribs = []
             if not self.raw_attributes:
@@ -478,7 +484,7 @@ class Tag:
                 key = self.__get_attribute_name(self.name, x[0])
                 value = ""
 
-                if x[1]:
+                if len(x) > 1:
                     value = re.sub(r"\s+", " ", x[1]).strip()
 
                     value = f'="{value}"'
@@ -533,7 +539,6 @@ class Tag:
             string: Formatted element output.
         """
         if not self.hidden:
-
             if self.type in ["open", "void"]:
                 if self.is_space_sensitive:
                     self.output += self.current_indent(level) + self.open_tag
@@ -546,16 +551,20 @@ class Tag:
                     # self.ignored_level += 1
 
                 else:
+
                     self.output += self.current_indent(level) + self.open_tag
 
                 if not self.is_void:
                     level += 1
                     self.output += "\n"
 
-            if self.type == "starttag_curly_perc":
+            elif self.type == "starttag_curly_perc":
                 # print("here")
                 # print(self.open_tag)
                 self.output += self.current_indent(level) + self.open_tag
+
+            elif self.tag == "doctype":
+                self.output += self.current_indent(level) + self.doctype
 
             self.output += ''.join(self.data)
             # if not self.tag.is_void:
@@ -587,6 +596,8 @@ class Tag:
         # if close_tag.is_script:
         #     self.ignored_level -= 1
         # print(self.current_indent(level) + self.close_tag + "\n")
-        self.output += self.current_indent(level) + self.close_tag + "\n"
+
+        if self.tag not in ["doctype", "djlint"]:
+            self.output += self.current_indent(level) + self.close_tag + "\n"
 
         return self.output
