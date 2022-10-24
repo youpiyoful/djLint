@@ -19,60 +19,60 @@ run:
 
 """
 
-# from typing import TextIO
+from typing import TextIO
 
-# from click.testing import CliRunner
+from click.testing import CliRunner
 
-# from tests.conftest import reformat
-
-
-# def test_case(runner: CliRunner, tmp_file: TextIO) -> None:
-#     output = reformat(tmp_file, runner, b"<!DocType htMl>")
-#     assert "<!DOCTYPE html>" == output.text
-
-#     output = reformat(tmp_file, runner, b"<!DocType htMl  >")
-#     assert "<!DOCTYPE html>" == output.text
+from tests.conftest import reformat
 
 
-# def test_html4_01_frameset(runner: CliRunner, tmp_file: TextIO) -> None:
+def test_case(runner: CliRunner, tmp_file: TextIO) -> None:
+    output = reformat(tmp_file, runner, b"<!DocType htMl>")
+    assert "<!DOCTYPE html>\n" == output.text
 
-#     html_in = (
-#         (
-#             """
-# <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Frameset//EN"
-#   "http://www.w3.org/TR/html4/frameset.dtd">
-# <html>
-#   <head>
-#     <title>An HTML standard template</title>
-#     <meta charset="utf-8"  />
-#   </head>
-#   <body>
-#     <p>… Your HTML content here …</p>
-#   </body>
-# </html>
-#     """
-#         )
-#         .strip()
-#         .encode()
-#     )
+    output = reformat(tmp_file, runner, b"<!DocType htMl  >")
+    assert "<!DOCTYPE html>\n" == output.text
 
-#     html_out = (
-#         """
-# <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Frameset//EN" "http://www.w3.org/TR/html4/frameset.dtd">
-# <html>
-#     <head>
-#         <title>An HTML standard template</title>
-#         <meta charset="utf-8" />
-#     </head>
-#     <body>
-#         <p>… Your HTML content here …</p>
-#     </body>
-# </html>
-#         """
-#     ).strip()
 
-#     output = reformat(tmp_file, runner, html_in)
-#     assert html_out == output.text
+def test_html4_01_frameset(runner: CliRunner, tmp_file: TextIO) -> None:
+
+    html_in = (
+        (
+            """
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Frameset//EN"
+  "http://www.w3.org/TR/html4/frameset.dtd">
+<html>
+  <head>
+    <title>An HTML standard template</title>
+    <meta charset="utf-8"  />
+  </head>
+  <body>
+    <p>… Your HTML content here …</p>
+  </body>
+</html>
+    """
+        )
+        .strip()
+        .encode()
+    )
+
+    html_out = (
+        """
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Frameset//EN" "http://www.w3.org/TR/html4/frameset.dtd">
+<html>
+    <head>
+        <title>An HTML standard template</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <p>… Your HTML content here …</p>
+    </body>
+</html>
+        """
+    ).strip()
+
+    output = reformat(tmp_file, runner, html_in)
+    assert html_out == output.text
 
 
 # def test_html4_01_strict(runner: CliRunner, tmp_file: TextIO) -> None:

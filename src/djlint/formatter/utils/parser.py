@@ -135,12 +135,19 @@ class TemplateParser(Htp):
         return None
 
     def handle_decl(self, decl: str) -> None:
+
         if re.match(r"doctype", decl, re.I):
+
             self.output += self.current_indent()
             decl = re.sub(r"^doctype", "", decl, flags=re.I | re.M).strip()
             decl = re.sub(r"^html\b", "html", decl, flags=re.I | re.M)
             decl = re.sub(r"\s+", " ", decl)
-            self.output += "<!DOCTYPE " + decl + ">" + "\n"
+            print(decl)
+
+            self.tag = Tag("doctype", self.config, parent=self.last_parent, attributes=[[x.strip()] for x in decl.split(" ")])
+            self.tag.is_html = True
+            # self.last_sibling = self.tag
+            self.tree.handle_decl(self.tag)
 
     def handle_starttag(self, tag: str, attrs: List) -> None:
         """Handle start tag.
@@ -246,9 +253,6 @@ class TemplateParser(Htp):
 
     def handle_charref(self, data):
         print("charref", data)
-
-    def handle_decl(self, data):
-        print("decl", data)
 
     def handle_entityref(self, data):
         print("entityref", data)

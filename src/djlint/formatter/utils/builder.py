@@ -109,3 +109,19 @@ class TreeBuilder(Tag):
     def handle_data(self, data):
         print("data")
         self.data.append(data)
+
+    def handle_decl(self, tag):
+        self.endData()
+        tag.parent = self.current_tag
+        tag.previous_tag = self._most_recent_tag
+        if self._most_recent_tag:
+            self._most_recent_tag.next_tag = tag
+
+        self._most_recent_tag = tag
+
+        self.pushTag(tag)
+        self.endData()
+        self._popToTag(tag.name, tag.namespace)
+
+
+        return tag
