@@ -1,13 +1,19 @@
+"""Base tag class.
+
+A tag represents any html/template element.
+"""
+
 import re
 from itertools import chain
 from typing import Dict, List, Optional, Tuple, Union
 
-from HtmlElementAttributes import html_element_attributes
 from HtmlStyles import html_styles
 from HtmlTagNames import html_tag_names
 from HtmlVoidElements import html_void_elements
 
 from djlint.settings import Config
+
+from .attribute_builder import AttributeTreeBuilder
 
 
 class Tag:
@@ -20,17 +26,18 @@ class Tag:
 
     Keyword Arguments:
         parent (Tag): A tag object of this element parent if any.
-        attributes (list): List of element attributes, each attribute a is tuple where
-            first item is the attribute name and second item is the attribute value.
+        attributes (str): string of potential attributes for an html element or
+            template tag.
         properties (list): Some 'virtual' properties specific to some tags that may
             define special behaviors.
     """
+
     def __init__(
         self,
         tag: str,
         config: Config,
         parent: Optional["Tag"] = None,
-        attributes: Optional[List] = None,
+        attributes: Optional[str] = None,
         properties: Optional[List] = None,
     ) -> None:
 
@@ -77,7 +84,7 @@ class Tag:
         self.namespace, self.name = self.__get_tag_name()
         self.is_pre = self.__tag_is_pre(self.name)
         self.raw_attributes = attributes
-        self.raw_properties = properties
+        self.raw_properties = properties or []
         self.is_void = self.name in html_void_elements + ["extends", "load", "include"]
 
     def __str__(self) -> str:
@@ -131,7 +138,59 @@ class Tag:
         """
         self._is_html = val
 
-    def _spaceless_left(self) -> str:
+    def set_profile(self, profile) -> str:
+        # todo: add config setting to disable profile guessing
+        if self.config.profile == "all":
+            self.config.profile = profile
+
+        # set all parents
+        if self.parent:
+            parent.set_profile(profile)
+
+    def get_profile(self) -> str:
+        if self.config.profile != "all":
+            return self.config.profile
+
+        if self.parent:
+            return self.parent.get_profile()
+
+        return self.config.profile
+
+    def __get_template_space(self) -> str:
+        """
+        Returns a possible whitespace character that will be include inside the
+        template tag on the left and right position of the tag.
+
+        Returns:
+            string: A single whitespace if the profile is not handlebars.
+            else return an empty string.
+        """
+        # if profile == handlebars or mustache, exclude the spaces.
+        # we should try to guess the profile......
+
+        return " " if self.get_profile() != "handlebars" else ""
+
+    def __get_partial(self) -> str:
+        """
+        Returns possible character to describe a partial marker at left position
+        inside an element tag.
+
+        This is only for the curly tag syntax which support it like Handlebars.
+
+        Returns:
+            string: A single right caret if element has the property ``partial``
+            else return an empty string.
+        """
+
+        return "> " if "partial" in self.raw_properties else ""
+
+    def __get_safe_left(self) -> str:
+        if "safe-left" in self.raw_properties:
+            return "--"
+
+        return ""
+
+    def __get_spaceless_left(self) -> str:
         """
         Returns possible character to describe a spaceless marker at left position
         inside an element tag.
@@ -142,9 +201,18 @@ class Tag:
             string: A single hyphen if element have the property ``spaceless-left``
             else return an empty string.
         """
-        return "-" if "spaceless-left" in self.raw_properties else ""
+        if "spaceless-left-dash" in self.raw_properties:
+            return "-"
 
-    def _spaceless_right(self) -> str:
+        if "spaceless-left-tilde" in self.raw_properties:
+            return "~"
+
+        if "spaceless-left-plus" in self.raw_properties:
+            return "+"
+
+        return ""
+
+    def __get_spaceless_right(self) -> str:
         """
         Returns possible character to describe a spaceless marker at right position
         inside an element tag.
@@ -155,7 +223,16 @@ class Tag:
             string: A single hyphen if element have the property ``spaceless-right``
             else return an empty string.
         """
-        return "-" if "spaceless-right" in self.raw_properties else ""
+        if "spaceless-right-dash" in self.raw_properties:
+            return "-"
+
+        if "spaceless-right-tilde" in self.raw_properties:
+            return "~"
+
+        if "spaceless-right-plus" in self.raw_properties:
+            return "+"
+
+        return ""
 
     def __get_tag_closing(self) -> str:
         """
@@ -167,12 +244,77 @@ class Tag:
         if self.is_void:
             return " />"
 
-        return ">"
+        if self._is_html:
+            if self.type == "comment":
+                return "-->"
+            return ">"
+
+        if self.type in ["starttag_curly_perc", "endtag_curly_perc"]:
+            return self.__get_spaceless_right() + "%}"
+
+        if self.type in ["starttag_curly_four", "endtag_curly_four_slash"]:
+            return self.__get_spaceless_right() + "}}}}"
+
+        if self.type in [
+            "curly_two_exlaim",
+            "curly_two",
+            "starttag_curly_two_hash",
+            "endtag_curly_two_slash",
+            "slash_curly_two",
+        ]:
+            return self.__get_spaceless_right() + "}}"
+
+        if self.type == "curly_three":
+            return self.__get_spaceless_right() + "}}}"
+        if self.type == "comment_curly_hash":
+            return self.__get_spaceless_right() + "#}"
+        return ""
+
+    def __get_tag_opening(self):
+        if self.type in ["starttag_curly_perc", "endtag_curly_perc"]:
+            return "{%" + self.__get_spaceless_left()
+
+        if self.type == "starttag_curly_four":
+            return "{{{{" + self.__get_spaceless_left()
+
+        if self.type == "curly_three":
+            return "{{{" + self.__get_spaceless_left()
+
+        if self.type == "starttag_curly_two_hash":
+            return f"{{{{{self.__get_spaceless_left()}#"
+
+        if self.type == "endtag_curly_four_slash":
+            return f"{{{{{{{{{self.__get_spaceless_left()}/"
+
+        if self.type == "endtag_curly_two_slash":
+            return f"{{{{{self.__get_spaceless_left()}/"
+
+        if self.type == "curly_two":
+            return "{{" + self.__get_spaceless_left()
+
+        if self.type == "curly_two_exlaim":
+            return "{{!" + self.__get_spaceless_left()
+
+        if self.type == "comment" and self.is_html:
+            return "<!--"
+
+        if self.type == "slash_curly_two":
+            return "\\{{" + self.__get_spaceless_left()
+
+        if self.type == "comment_curly_hash":
+            return "{#" + self.__get_spaceless_left()
+
+        return ""
+
+    def __get_tag_modifier(self):
+        if self.type == "endtag_curly_perc":
+            return "end"
+        return ""
 
     @property
     def doctype(self) -> str:
         """Returns and HTML doctype tag including its possible attributes."""
-        return f"<!DOCTYPE{self.attributes}>\n"
+        return f"<!DOCTYPE{self._attributes}>\n"
 
     @property
     def open_tag(self) -> str:
@@ -193,17 +335,14 @@ class Tag:
             if self.parent and (
                 self.parent.is_indentation_sensitive or self.parent.is_space_sensitive
             ):
-                return f"<{self.name}{self.attributes}{self.__get_tag_closing()}"
+                return f"<{self.name}{self._attributes}{self.__get_tag_closing()}"
             else:
-                return f"<{self.name}{self.attributes}{self.__get_tag_closing()}"
+                return f"<{self.name}{self._attributes}{self.__get_tag_closing()}"
 
-        if self.type == "starttag_curly_perc":
-            return (
-                f"{{%{self._spaceless_left()} {self.tag}{self._attributes()} "
-                f"{self._spaceless_right()}%}}"
-            )
-
-        return ""
+        return (
+            f"{self.__get_tag_opening()}{self.__get_partial()}{self.__get_template_space()}{self.tag}{self._attributes}{self.__get_template_space()}"
+            f"{self.__get_tag_closing()}"
+        )
 
     @property
     def close_tag(self) -> str:
@@ -230,12 +369,17 @@ class Tag:
                 return f"</{self.name}{self.__get_tag_closing()}"
             return f"</{self.name}{self.__get_tag_closing()}"
 
-        if self.type == "endtag_curly_perc":
-            return (
-                f"{{%{self._spaceless_left()} end{self.tag}{self._attributes()} "
-                f"{self._spaceless_right()}%}}"
-            )
+        if self.type in [
+            "endtag_curly_perc",
+            "endtag_curly_two_slash",
+            "endtag_curly_four_slash",
+            "endtag_comment_curly_perc",
+        ]:
 
+            return (
+                f"{self.__get_tag_opening()}{self.__get_partial()}{self.__get_safe_left()}{self.__get_template_space()}{self.__get_tag_modifier()}{self.tag}{self._attributes}{self.__get_template_space()}"
+                f"{self.__get_tag_closing()}"
+            )
         return ""
 
     @property
@@ -247,10 +391,7 @@ class Tag:
             string: The statement tag or an empty string, depending if element is a
             curly element or not.
         """
-        if self.type == "curly":
-            return f"{{{{ {self.tag}{self._attributes()} }}}}"
-
-        return ""
+        return f"{self.__get_tag_opening()}{self.__get_partial()}{self.__get_safe_left()}{self.__get_template_space()}{self.tag}{self._attributes}{self.__get_template_space()}{self.__get_tag_closing()}"
 
     def __get_tag_style(self, style: str) -> Dict:
         """
@@ -411,87 +552,28 @@ class Tag:
 
         return namespace, tag.lower() if tag.lower() in html_tag_names else tag
 
-    def __get_attribute_name(self, tag: str, attribute: str) -> str:
-        """
-        Returns lowerized attribute name if it is a knowed attribute from
-        function ``HtmlElementAttributes.html_element_attributes``.
-
-        Arguments:
-            tag (string): The HTML element name.
-            attribute (string): The attribute name.
-
-        Returns:
-            string: Attribute name.
-        """
-        return (
-            attribute.lower()
-            if attribute.lower() in html_element_attributes["*"]
-            or attribute.lower() in html_element_attributes.get(tag, [])
-            else attribute
-        )
-
-    def _attributes(self):
-        """
-        Return attributes whatever the element is HTML or not.
-
-        No normalization is applied here except whitespace divider between attributes.
-
-        .. Note::
-            For this method to work correctly, the attribute ``Tag.raw_attributes``
-            must be set to a list of strings, like: ``['class="foo"', 'id="foo"']``.
-
-        Returns:
-            string: Empty string if there is no attribute or ``None`` if element is not
-            HTML (as returned from ``_is_html``). Else it will return a string
-            including all the attributes.
-        """
-        attribs = []
-        if not self.raw_attributes:
-            return ""
-
-        for x in self.raw_attributes:
-            value = re.sub(r"\s+", " ", x).strip()
-
-            attribs.append(value)
-
-        return " " + (" ").join(attribs) if len(attribs) > 0 else ""
-
     @property
-    def attributes(self) -> str:
+    def _attributes(self) -> str:
         """
         Return normalized attributes for a HTML element.
 
         Normalization is just about lowercase and whitespace divider between multiple
         attributes.
 
-        .. Note::
-            For this method to work correctly, the attribute ``Tag.raw_attributes``
-            must be set to a list of tuples, like:
-            ``[("class", "foo"), ("id", "foo")]``.
-
         Returns:
             string: Empty string if there is no attribute or ``None`` if element is not
             HTML (as returned from ``_is_html``). Else it will return a string
             including all the attributes.
         """
+        if not self.raw_attributes:
+            return ""
 
         if self._is_html:
-            attribs = []
-            if not self.raw_attributes:
-                return ""
+            p = AttributeTreeBuilder(self.config, self.raw_attributes)
+            return p.format()
 
-            for x in self.raw_attributes:
-                key = self.__get_attribute_name(self.name, x[0])
-                value = ""
-
-                if len(x) > 1:
-                    value = re.sub(r"\s+", " ", x[1]).strip()
-
-                    value = f'="{value}"'
-
-                attribs.append(f"{key}{value}")
-
-            return " " + (" ").join(attribs) if len(attribs) > 0 else ""
+        # template attributes
+        return " " + self.raw_attributes
 
     def current_indent(self, level):
         """
@@ -520,7 +602,6 @@ class Tag:
         """
         s = []
         for child in self.children:
-            # print(f"{self.name}'s child: {child.name}")
             s.append(child.format(level))
 
         return "".join(s)
@@ -538,6 +619,7 @@ class Tag:
         Returns:
             string: Formatted element output.
         """
+
         if not self.hidden:
             if self.type in ["open", "void"]:
                 if self.is_space_sensitive:
@@ -551,36 +633,38 @@ class Tag:
                     # self.ignored_level += 1
 
                 else:
-
                     self.output += self.current_indent(level) + self.open_tag
 
                 if not self.is_void:
                     level += 1
                     self.output += "\n"
 
-            elif self.type == "starttag_curly_perc":
-                # print("here")
-                # print(self.open_tag)
+            elif self.type in [
+                "starttag_curly_perc",
+                "starttag_curly_four",
+                "starttag_curly_two_hash",
+            ]:
+
                 self.output += self.current_indent(level) + self.open_tag
 
             elif self.tag == "doctype":
                 self.output += self.current_indent(level) + self.doctype
 
-            self.output += ''.join(self.data)
-            # if not self.tag.is_void:
-            #     self.last_sibling = self
+        self.output += "".join(self.data)
+        # if not self.tag.is_void:
+        #     self.last_sibling = self
 
-            # if self.last_parent is None:
-            #     self.last_parent = self
-            # elif not self.is_void and not self.is_script:
-            #     self.last_parent = self
-            # elif self.is_script:
-            #     self.last_parent = self.last_parent
-            # else:
-            #     self.last_parent = self.parent
-            # print(self.name)
+        # if self.last_parent is None:
+        #     self.last_parent = self
+        # elif not self.is_void and not self.is_script:
+        #     self.last_parent = self
+        # elif self.is_script:
+        #     self.last_parent = self.last_parent
+        # else:
+        #     self.last_parent = self.parent
+        # print(self.name)
 
-            # print(self.output)
+        # print(self.output)
 
         self.output += self.format_contents(level)
         if not self.is_void:
@@ -597,7 +681,7 @@ class Tag:
         #     self.ignored_level -= 1
         # print(self.current_indent(level) + self.close_tag + "\n")
 
-        if self.tag not in ["doctype", "djlint"]:
+        if self.tag not in ["doctype", "djlint"] and self.close_tag:
             self.output += self.current_indent(level) + self.close_tag + "\n"
 
         return self.output
