@@ -43,7 +43,6 @@ def indent_html(rawcode: str, config: Config):
 
 
     p = TreeBuilder(config, rawcode)
-
     # p = TemplateParser(config)
 
     # p.feed(rawcode)
