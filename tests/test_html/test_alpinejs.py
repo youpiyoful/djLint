@@ -9,43 +9,41 @@ run:
 
 """
 # pylint: disable=C0116
-from typing import TextIO
 
-from click.testing import CliRunner
+from src.djlint.formatter.indent import indent_html
+from tests.conftest import printer
 
-from tests.conftest import reformat
+def test_alpine_js(basic_config) -> None:
+    source = (
+        '<div id="collapse"\n'
+        '     x-data="{ show: true }"\n'
+        '     x-show="show"\n'
+        '     x-transition.duration.500ms\n'
+        '     :disabled="!$store.userPreferences.deleteConfirm"\n'
+        '     @click="clicked=true">'
+        '</div>\n'
+    )
+    output =indent_html(source, basic_config)
+    printer(source,output)
+
+    assert source == output
 
 
-def test_alpine_js(runner: CliRunner, tmp_file: TextIO) -> None:
-    output = reformat(
-        tmp_file,
-        runner,
-        b"""<div id="collapse"
-     x-data="{ show: true }"
-     x-show="show"
-     x-transition.duration.500ms
-     :disabled="!$store.userPreferences.deleteConfirm"
-     @click="clicked=true">
-</div>""",
+def test_alpine_nested_html(basic_config) -> None:
+    source = (
+        '<html lang="en">\n'
+        '    <body>\n'
+        '        <!-- x-data , x-text , x-html -->\n'
+        '        <div x-data="{key:\'value\',message:\'hello <b>world</b> \'}">\n'
+        '            <p x-text="key"></p>\n'
+        '            <p x-html="message"></p>\n'
+        '        </div>\n'
+        '    </body>\n'
+        '</html>\n'
     )
 
-    assert output.exit_code == 0
+    output =indent_html(source, basic_config)
+    printer(source,output)
 
+    assert source == output
 
-def test_alpine_nested_html(runner: CliRunner, tmp_file: TextIO) -> None:
-    output = reformat(
-        tmp_file,
-        runner,
-        b"""<html lang="en">
-    <body>
-        <!-- x-data , x-text , x-html -->
-        <div x-data="{key:'value',message:'hello <b>world</b> '}">
-            <p x-text="key"></p>
-            <p x-html="message"></p>
-        </div>
-    </body>
-</html>
-""",
-    )
-
-    assert output.exit_code == 0

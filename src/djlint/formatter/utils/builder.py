@@ -21,7 +21,7 @@ class TreeBuilder(Tag):
     Formatting of the entire html is achieved by iterating the tags and calling tag.format().
     """
 
-    ROOT_TAG_NAME = "djlint"
+
 
     def __init__(self, config, text):
         self.text = text
@@ -120,7 +120,36 @@ class TreeBuilder(Tag):
             self.pushTag(tag, stack=False)
 
     def handle_data(self, data):
-        self.current_tag.data.append(data)
+        if data.strip() == "":
+            self._most_recent_tag.raw_properties.append('has-trailing-space')
+            return self._most_recent_tag
+        if self._most_recent_tag.type == self.DATA_TAG_NAME:
+            self._most_recent_tag.data.append(data)
+
+            return self._most_recent_tag
+
+        tag = Tag(self.DATA_TAG_NAME, self.config)
+        tag.type =self.DATA_TAG_NAME
+        tag.data.append(data)
+        tag.parent = self.current_tag
+        tag.previous_tag = self._most_recent_tag
+        if self._most_recent_tag:
+            self._most_recent_tag.next_tag = tag
+
+        self.pushTag(tag, stack=False)
+
+        return tag
+
+
+    def handle_statement(self,tag):
+        self.endData()
+        tag.parent = self.current_tag
+        tag.previous_tag = self._most_recent_tag
+        if self._most_recent_tag:
+            self._most_recent_tag.next_tag = tag
+
+        self.pushTag(tag, stack=False)
+
 
     def handle_decl(self, tag):
         self.endData()

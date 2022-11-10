@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 from src.djlint import main as djlint
 
-
+from src.djlint.settings import Config
 @pytest.fixture()
 def runner() -> CliRunner:
     """Click runner for djlint tests."""
@@ -27,6 +27,14 @@ def tmp_file() -> Generator:
     tmp.close()
     os.unlink(tmp.name)
 
+def printer(expected,actual):
+    print()
+    print("Expected", ("."*10))
+    print(expected)
+    print()
+    print("Result", ("."*10))
+    print(actual)
+    print()
 
 def write_to_file(the_file: str, the_text: bytes) -> None:
     """Shortcode for write some bytes to a file."""
@@ -43,3 +51,10 @@ def reformat(the_file: TextIO, runner: CliRunner, the_text: bytes) -> SimpleName
             "exit_code": result.exit_code,
         }
     )
+
+@pytest.fixture(scope="function")
+def basic_config() -> Config:
+    """
+    Return a config object with default basic options.
+    """
+    return Config("dummy/source.html")

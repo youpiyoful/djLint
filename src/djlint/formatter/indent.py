@@ -50,7 +50,8 @@ def indent_html(rawcode: str, config: Config):
     output = p.format()
 
 
-    output = front_matter + output
+
+    output = front_matter + ("").join(output)
 
     return output
 

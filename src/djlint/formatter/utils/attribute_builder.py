@@ -7,18 +7,22 @@ from .attribute_tag import AttributeTag
 
 
 class AttributeTreeBuilder(AttributeTag):
-    ROOT_TAG_NAME = "djlint-attribute"
 
-    def __init__(self, config, text):
+
+    def __init__(self, config, text, parent_tag, indent_padding, level):
+
         self.text = text
         self.config = config
-        self.parser = AttributeParser(config)
-
+        self.parser = AttributeParser(config, parent_tag, indent_padding)
+        self.parent_tag = parent_tag
+        self.indent_padding = indent_padding
+        self.base_level = level
         self._reset()
         self._feed()
 
+
     def _reset(self):
-        AttributeTag.__init__(self, self.ROOT_TAG_NAME, self.config)
+        AttributeTag.__init__(self, self.ROOT_TAG_NAME, self.config, self.parent_tag, self.indent_padding)
         self.parser.reset()
         self.tagStack = []  # children of current tag
         self.current_tag = None
@@ -59,6 +63,7 @@ class AttributeTreeBuilder(AttributeTag):
         return self.current_tag
 
     def pushTag(self, tag, stack=True):
+        # print("pusing", tag.data, tag.type, tag.raw_attributes)
         if self.current_tag:
             self.current_tag.children.append(tag)
 
@@ -87,6 +92,19 @@ class AttributeTreeBuilder(AttributeTag):
             last_pop = self.popTag()
 
         return last_pop
+
+    def handle_statement(self, tag):
+        tag.parent = self.current_tag
+        tag.previous_tag = self._most_recent_tag
+
+        if self._most_recent_tag:
+            self._most_recent_tag.next_tag = tag
+
+        self._most_recent_tag = tag
+
+        self.pushTag(tag, stack=False)
+
+        return tag
 
     def handle_endtag(self, tag):
 

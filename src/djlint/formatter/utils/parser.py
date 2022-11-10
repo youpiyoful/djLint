@@ -17,6 +17,7 @@ from .tag import Tag
 class TemplateParser(Htp):
     """Overrides for HtmlTemplateParser."""
 
+
     def __init__(self, config):
 
         super(TemplateParser, self).__init__()
@@ -38,14 +39,12 @@ class TemplateParser(Htp):
         if re.match(r"doctype", decl, re.I):
 
             decl = re.sub(r"^doctype", "", decl, flags=re.I | re.M).strip()
-            decl = re.sub(r"^html\b", "html", decl, flags=re.I | re.M)
-            decl = re.sub(r"\s+", " ", decl)
 
             self.tag = Tag(
                 "doctype",
                 self.config,
                 # parent=self.last_parent,
-                attributes=decl.split(" ")[1:],
+                attributes=decl,
             )
             self.tag.is_html = True
             self.tree.handle_decl(self.tag)
@@ -155,21 +154,20 @@ class TemplateParser(Htp):
         tag = Tag(data, self.config)
         tag.type = "comment_curly_hash"
 
-        self.handle_data(tag.statement_tag)
+        self.handle_statement(tag)
 
     def handle_comment_at_star(self, data):
         # c# razor pages comment
         tag = Tag(data, self.config)
         tag.type = "comment_at_star"
 
-        self.handle_data(tag.statement_tag)
+        self.handle_statement(tag)
 
-    def handle_endtag_comment_curly_perc(self, data, props):
+    def handle_endtag_comment_curly_perc(self, tag, props):
         # django multi line comment {% comment %}{% endcomment %}
         self.tag = Tag(
             tag,
             self.config,
-            # parent=self.last_parent,
             properties=props,
         )
         self.tag.type = "endtag_comment_curly_perc"
@@ -183,7 +181,7 @@ class TemplateParser(Htp):
         self.tag.set_profile("handlebars")
         tag.type = "curly_two_exlaim"
 
-        self.tree.handle_data(tag.statement_tag)
+        self.tree.handle_statement(tag)
 
     def handle_charref(self, data):
         print("charref", data)
@@ -225,7 +223,7 @@ class TemplateParser(Htp):
         tag = Tag(data, self.config, attributes=attrs, properties=props)
         tag.type = "curly_two"
 
-        self.tree.handle_data(tag.statement_tag)
+        self.tree.handle_statement(tag)
 
     def handle_slash_curly_two(self, data, attrs):
         # handlebars/mustache inline raw block
@@ -234,7 +232,7 @@ class TemplateParser(Htp):
         self.tag.set_profile("handlebars")
         tag.set_profile("handlebars")
 
-        self.tree.handle_data(tag.statement_tag)
+        self.tree.handle_statement(tag)
 
     def handle_curly_three(self, data):
         # handlebars un-escaped html
@@ -243,7 +241,7 @@ class TemplateParser(Htp):
         self.tag.set_profile("handlebars")
         tag.set_profile("handlebars")
 
-        self.tree.handle_data(tag.statement_tag)
+        self.tree.handle_statement(tag)
 
     def handle_data(self, data: str) -> None:
         self.tree.handle_data(data)
@@ -261,7 +259,7 @@ class TemplateParser(Htp):
         )
         tag.type = "comment"
         tag.is_html = True
-        self.tree.handle_data(tag.statement_tag)
+        self.tree.handle_statement(tag)
 
     def close(self):
         super(TemplateParser, self).close()

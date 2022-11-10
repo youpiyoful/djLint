@@ -32,13 +32,16 @@ class Tag:
             define special behaviors.
     """
 
+    ROOT_TAG_NAME = "djlint"
+    DATA_TAG_NAME = "djlint-data"
+
     def __init__(
         self,
         tag: str,
         config: Config,
         parent: Optional["Tag"] = None,
         attributes: Optional[str] = None,
-        properties: Optional[List] = None,
+        properties: Optional[List] = [],
     ) -> None:
 
         self.__css_default_whitespace = "normal"
@@ -78,7 +81,7 @@ class Tag:
         self.next_tag = None
         self.rawname = tag
         self.children = []
-        self.output = ""
+        self.output = []
         self.hidden = False
         self.tag = tag
         self.namespace, self.name = self.__get_tag_name()
@@ -86,6 +89,7 @@ class Tag:
         self.raw_attributes = attributes
         self.raw_properties = properties or []
         self.is_void = self.name in html_void_elements + ["extends", "load", "include"]
+        self.indent_padding = 0
 
     def __str__(self) -> str:
         return self.name
@@ -138,6 +142,18 @@ class Tag:
         """
         self._is_html = val
 
+    def first_child(self):
+        if self.children:
+            return self.children[0]
+
+        return None
+
+    def last_child(self):
+        if self.children:
+            return self.children[-1]
+
+        return None
+
     def set_profile(self, profile) -> str:
         # todo: add config setting to disable profile guessing
         if self.config.profile == "all":
@@ -145,7 +161,7 @@ class Tag:
 
         # set all parents
         if self.parent:
-            parent.set_profile(profile)
+            self.parent.set_profile(profile)
 
     def get_profile(self) -> str:
         if self.config.profile != "all":
@@ -304,17 +320,15 @@ class Tag:
         if self.type == "comment_curly_hash":
             return "{#" + self.__get_spaceless_left()
 
-        return ""
+        if self.name.lower() == "doctype":
+            return "<!"
+
+        return "<"
 
     def __get_tag_modifier(self):
         if self.type == "endtag_curly_perc":
             return "end"
         return ""
-
-    @property
-    def doctype(self) -> str:
-        """Returns and HTML doctype tag including its possible attributes."""
-        return f"<!DOCTYPE{self._attributes}>\n"
 
     @property
     def open_tag(self) -> str:
@@ -332,16 +346,23 @@ class Tag:
             string: Opening tag string if available.
         """
         if self._is_html:
+            start = f"{self.__get_tag_opening()}{self.name}"
+            self.indent_padding = len(start)
+
             if self.parent and (
-                self.parent.is_indentation_sensitive or self.parent.is_space_sensitive
+                self.parent.is_indentation_sensitive or self.parent.is_whitespace_sensitive
             ):
-                return f"<{self.name}{self._attributes}{self.__get_tag_closing()}"
+
+                return f"{start}{self._attributes}{self.__get_tag_closing()}"
             else:
-                return f"<{self.name}{self._attributes}{self.__get_tag_closing()}"
+                return f"{start}{self._attributes}{self.__get_tag_closing()}"
+
+        start = f"{self.__get_tag_opening()}{self.__get_partial()}{self.__get_template_space()}{self.tag}"
+
+        self.indent_padding = len(start)
 
         return (
-            f"{self.__get_tag_opening()}{self.__get_partial()}{self.__get_template_space()}{self.tag}{self._attributes}{self.__get_template_space()}"
-            f"{self.__get_tag_closing()}"
+            f"{start}{self._attributes}{self.__get_template_space()}{self.__get_tag_closing()}"
         )
 
     @property
@@ -359,12 +380,12 @@ class Tag:
         Returns:
             string: Closing tag string if available.
         """
-        if self.is_void:
+        if self.is_void or self.type in ["comment"]:
             return ""
 
         if self._is_html:
             if self.parent and (
-                self.parent.is_indentation_sensitive or self.parent.is_space_sensitive
+                self.parent.is_indentation_sensitive or self.parent.is_whitespace_sensitive
             ):
                 return f"</{self.name}{self.__get_tag_closing()}"
             return f"</{self.name}{self.__get_tag_closing()}"
@@ -446,7 +467,7 @@ class Tag:
         return False
 
     @property
-    def is_space_sensitive(self) -> bool:
+    def is_whitespace_sensitive(self) -> bool:
         """
         Check if tag is space sensitive.
 
@@ -456,16 +477,52 @@ class Tag:
         Returns:
             bool: A boolean whether the element is space sensitive or not.
         """
-        if self._is_html:
-            display = self.__css_display.get(self.name, self.__css_default_display)
+        # if self._is_html:
+        #     display = self.__css_display.get(self.name, self.__css_default_display)
 
-            return (
-                self.is_script
-                or not display.startswith("table")
-                and display not in ["block", "list-item", "inline-block"]
-            )
+        return (
+            self.is_script
+            #or not display.startswith("table")
+            #and display not in ["block", "list-item", "inline-block"]
+            or self.is_indentation_sensitive
+        )
 
+        # return False
+
+    @property
+    def is_front_matter(self) -> bool:
         return False
+
+    @property
+    def is_first_child_leading_space_sensitive_css_display(self) -> bool:
+        return False
+
+    @property
+    def is_next_leading_space_sensitive_css_display(self) -> bool:
+        return False
+
+    @property
+    def is_leading_space_sensitive(self) -> bool:
+        """
+        Check if tag is sensitive to leading space.
+        """
+
+        if self.is_front_matter:
+            return False
+
+        if self.type == self.DATA_TAG_NAME:
+            return True
+
+        if self.is_pre:
+            return True
+
+        if not self.previous_tag and (self.parent.type == self.ROOT_TAG_NAME or self.is_script or not self.parent.is_first_child_leading_space_sensitive_css_display):
+            return False
+
+        if self.previous_tag and not self.previous_tag.is_next_leading_space_sensitive_css_display:
+            return False
+
+        return True
 
     @property
     def is_indentation_sensitive(self) -> bool:
@@ -486,6 +543,12 @@ class Tag:
             return self.__tag_is_pre(self.name)
 
         return False
+
+
+    @property
+    def is_dangling_space_sensitive(self) -> bool:
+        return not self.is_script and self.__css_display.get(self.name, self.__css_default_display) !="inline-block" and not self.is_display_block_like
+
 
     @property
     def is_display_none(self) -> bool:
@@ -512,6 +575,42 @@ class Tag:
             )
 
         return False
+
+    @property
+    def is_display_block_like(self) -> bool:
+        display =  self.__css_display.get(self.name, self.__css_default_display)
+        return (
+               display in ['block', 'list-item'] or display.startswith('table')
+            )
+    @property
+    def has_trailing_space(self) -> bool:
+        return 'has-trailing-space' in self.raw_properties
+    @property
+    def is_last_child_trailing_space_sensitive_css_display(self) ->bool:
+        return False
+
+    @property
+    def is_prev_trailing_space_sensitive_css_display(self) -> bool:
+        return False
+
+    @property
+    def is_trailing_space_sensitive(self) -> bool:
+        if self.type == self.DATA_TAG_NAME and self.next_tag and self.next_tag == self.DATA_TAG_NAME:
+            return True
+
+        if not self.parent or self.parent.is_display_none:
+            return False
+
+        if self.is_pre:
+            return True
+
+        if not self.next_tag and (self.parent.type != self.ROOT_TAG_NAME or self.parent.is_script or not self.parent.is_last_child_trailing_space_sensitive_css_display):
+            return False
+
+        if self.next_tag and not self.next_tag.is_prev_trailing_space_sensitive_css_display:
+            return False
+        return True
+
 
     @property
     def is_script(self) -> bool:
@@ -550,7 +649,11 @@ class Tag:
             namespace = self.rawname.split(":")[0]
             tag = (":").join(self.rawname.split(":")[1:])
 
-        return namespace, tag.lower() if tag.lower() in html_tag_names else tag
+        if tag.lower() in html_tag_names:
+            tag = tag.lower()
+        if tag.lower() == "doctype":
+            tag = "DOCTYPE"
+        return namespace, tag
 
     @property
     def _attributes(self) -> str:
@@ -569,7 +672,7 @@ class Tag:
             return ""
 
         if self._is_html:
-            p = AttributeTreeBuilder(self.config, self.raw_attributes)
+            p = AttributeTreeBuilder(self.config, self.raw_attributes, self.tag, self.indent_padding, self.level)
             return p.format()
 
         # template attributes
@@ -602,9 +705,78 @@ class Tag:
         """
         s = []
         for child in self.children:
-            s.append(child.format(level))
+            s+=child.format(level)
 
-        return "".join(s)
+        return s
+
+    @property
+    def has_leading_space(self) -> bool:
+        return False
+    @property
+    def should_hug_content(self) -> bool:
+        return (
+            len(self.children) == 1
+            and self.first_child().type in ['curly_two'] # and other statement tags
+            and self.first_child().is_leading_space_sensitive
+            and not self.first_child().has_leading_space
+            and self.last_child().is_trailing_space_sensitive
+            and not self.last_child().has_trailing_space
+            )
+
+
+    def print_line_before_children(self) -> str:
+        if not self.children:
+            return ""
+
+        if self.should_hug_content:
+            return ""
+
+        if self.first_child() and self.first_child().has_leading_space and self.first_child().is_leading_space_sensitive:
+            return ""
+
+        if self.first_child() and self.first_child().type == self.DATA_TAG_NAME and self.is_whitespace_sensitive and self.is_indentation_sensitive:
+            return ""
+
+        print("before!", self.type, self.name)
+        return "\n"
+
+    @property
+    def needs_to_borrow_prev_closing_tag_end_marker(self) -> bool:
+        return False
+
+    def print_line_between_children(self) -> str:
+        if self.next_tag and self.next_tag.type in ["open"] and self.type in ["open"] and self.parent.last_child() != self:
+            return "\n"
+        return ""
+
+    def print_line_after_children(self) -> str:
+        if self.type in ["open"] and not self.children:
+            return ""
+
+        needs_to_borrow = False
+        if self.next_tag:
+            needs_to_borrow = self.next_tag.needs_to_borrow_prev_closing_tag_end_marker
+        elif self.parent:
+            needs_to_borrow = self.parent.needs_to_borrow_prev_closing_tag_end_marker
+
+        if needs_to_borrow:
+            if self.last_child() and self.last_child().has_trailing_space and self.last_child().is_trailing_space_sensitive:
+                return " "
+            return ""
+
+        if self.should_hug_content:
+            return ""
+
+        if self.last_child() and self.last_child().has_trailing_space and self.last_child().is_trailing_space_sensitive:
+            return "\n"
+
+        if self.last_child() and (self.last_child().type == "comment" or (self.last_child().type == self.DATA_TAG_NAME and self.is_whitespace_sensitive and self.is_indentation_sensitive)):
+            return ""
+
+        if self.type == self.DATA_TAG_NAME:
+            return ""
+
+        return "\n"
 
     def format(self, level=0):
         """
@@ -618,70 +790,73 @@ class Tag:
 
         Returns:
             string: Formatted element output.
+
+        methods needed:
+        - should_preserver_content
+        - ✅ should_hug_content
+        - ✅ is_script
+        - ✅ needs_to_borrow_prev_closing_tag_end_marker
+        - needs_to_borrow_last_child_closing_tag_end_marker
+        - needs_to_borrow_parent_closing_tag_start_marker
+        - needs_to_borrow_next_opening_tag_start_marker
+        - force_not_to_break_attr_content
+        - should_print_attribute_per_line
+        - print_between_line
+        - prefer_hard_line_as_leading_space
+        - ✅ is_text_like_node (self.tag == self.DATA_TAG)
+        - force_break_children
+        - force_next_empty_line
+        - print_child
+
+
+        props:
+        - print_break_before_children
+        - print_line_after_children
+        - ✅ is_front_matter
+        - ✅ is_whitespace_sensitive
+        - ✅ is_leading_space_sensitive
+        - has_leading_space
+        - ✅ is_trailing_space_sensitive
+        - has_trailing_spaces
+        - ✅ is_indentation_sensitive
+        - has_dangling_spaces
+        - ✅ is_dangling_space_sensitive
         """
 
-        if not self.hidden:
-            if self.type in ["open", "void"]:
-                if self.is_space_sensitive:
-                    self.output += self.current_indent(level) + self.open_tag
+        """
 
-                elif self.is_indentation_sensitive:
-                    self.output += self.current_indent(level) + self.open_tag
+        print opening tag
+        print children
+        print closing tag
+        """
+        self.level = level
+        print(self.name,level)
+        open_tag = self.open_tag
 
-                elif self.is_script:
-                    self.output += self.current_indent(level) + self.open_tag
-                    # self.ignored_level += 1
+        if open_tag and self.tag not in [self.ROOT_TAG_NAME , self.DATA_TAG_NAME]:
+            self.output.append(self.current_indent(level) + open_tag)
 
-                else:
-                    self.output += self.current_indent(level) + self.open_tag
+            if not self.is_void:
+                level += 1
+                self.output.append(self.print_line_before_children())
 
-                if not self.is_void:
-                    level += 1
-                    self.output += "\n"
 
-            elif self.type in [
-                "starttag_curly_perc",
-                "starttag_curly_four",
-                "starttag_curly_two_hash",
-            ]:
+        self.output.append("".join(self.data))
 
-                self.output += self.current_indent(level) + self.open_tag
+        self.output+= self.format_contents(level)
 
-            elif self.tag == "doctype":
-                self.output += self.current_indent(level) + self.doctype
+        self.output.append(self.print_line_after_children())
 
-        self.output += "".join(self.data)
-        # if not self.tag.is_void:
-        #     self.last_sibling = self
-
-        # if self.last_parent is None:
-        #     self.last_parent = self
-        # elif not self.is_void and not self.is_script:
-        #     self.last_parent = self
-        # elif self.is_script:
-        #     self.last_parent = self.last_parent
-        # else:
-        #     self.last_parent = self.parent
-        # print(self.name)
-
-        # print(self.output)
-
-        self.output += self.format_contents(level)
         if not self.is_void:
             level -= 1
-        # self.output += self.current_indent()
-        # self.last_sibling = close_tag
 
-        # if close_tag.is_script:
-        #     self.last_parent = self.get_open_parent(close_tag)
-        # else:
-        #     self.last_parent = self.get_open_parent(self.tag.parent)
+        if self.tag not in ["doctype", self.ROOT_TAG_NAME] and self.close_tag:
+            if re.match(r"\n", self.output[-1]):
+                self.output.append(self.current_indent(level))
 
-        # if close_tag.is_script:
-        #     self.ignored_level -= 1
-        # print(self.current_indent(level) + self.close_tag + "\n")
+            self.output.append(self.close_tag)
 
-        if self.tag not in ["doctype", "djlint"] and self.close_tag:
-            self.output += self.current_indent(level) + self.close_tag + "\n"
+        self.output.append(self.print_line_between_children())
 
+        print(self.output)
         return self.output
