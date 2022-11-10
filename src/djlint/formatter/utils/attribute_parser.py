@@ -135,7 +135,6 @@ class AttributeParser(Atp):
         # handlebars raw close {{{{raw}}}}{{{{/raw}}}}
         self.tag = Tag(tag, self.config,self.parent_tag, indent_padding=self.indent_padding,attributes=attrs, properties=props)
         self.tag.type = "endtag_curly_four_slash"
-
         self.tree.handle_endtag(self.tag)
 
     def handle_starttag_curly_four(self, tag, attrs, props):

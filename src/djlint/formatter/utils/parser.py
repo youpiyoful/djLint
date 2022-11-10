@@ -17,7 +17,6 @@ from .tag import Tag
 class TemplateParser(Htp):
     """Overrides for HtmlTemplateParser."""
 
-
     def __init__(self, config):
 
         super(TemplateParser, self).__init__()
@@ -154,6 +153,7 @@ class TemplateParser(Htp):
         tag = Tag(data, self.config)
         tag.type = "comment_curly_hash"
 
+
         self.handle_statement(tag)
 
     def handle_comment_at_star(self, data):
@@ -259,6 +259,7 @@ class TemplateParser(Htp):
         )
         tag.type = "comment"
         tag.is_html = True
+
         self.tree.handle_statement(tag)
 
     def close(self):

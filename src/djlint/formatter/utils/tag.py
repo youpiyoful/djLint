@@ -142,6 +142,7 @@ class Tag:
         """
         self._is_html = val
 
+
     def first_child(self):
         if self.children:
             return self.children[0]
@@ -153,6 +154,7 @@ class Tag:
             return self.children[-1]
 
         return None
+
 
     def set_profile(self, profile) -> str:
         # todo: add config setting to disable profile guessing
@@ -320,6 +322,7 @@ class Tag:
         if self.type == "comment_curly_hash":
             return "{#" + self.__get_spaceless_left()
 
+
         if self.name.lower() == "doctype":
             return "<!"
 
@@ -346,6 +349,7 @@ class Tag:
             string: Opening tag string if available.
         """
         if self._is_html:
+
             start = f"{self.__get_tag_opening()}{self.name}"
             self.indent_padding = len(start)
 
@@ -363,6 +367,7 @@ class Tag:
 
         return (
             f"{start}{self._attributes}{self.__get_template_space()}{self.__get_tag_closing()}"
+
         )
 
     @property
@@ -380,6 +385,7 @@ class Tag:
         Returns:
             string: Closing tag string if available.
         """
+
         if self.is_void or self.type in ["comment"]:
             return ""
 
@@ -467,6 +473,7 @@ class Tag:
         return False
 
     @property
+
     def is_whitespace_sensitive(self) -> bool:
         """
         Check if tag is space sensitive.
@@ -477,6 +484,7 @@ class Tag:
         Returns:
             bool: A boolean whether the element is space sensitive or not.
         """
+
         # if self._is_html:
         #     display = self.__css_display.get(self.name, self.__css_default_display)
 
@@ -791,6 +799,7 @@ class Tag:
         Returns:
             string: Formatted element output.
 
+
         methods needed:
         - should_preserver_content
         - ✅ should_hug_content
@@ -859,4 +868,5 @@ class Tag:
         self.output.append(self.print_line_between_children())
 
         print(self.output)
+
         return self.output

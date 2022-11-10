@@ -459,6 +459,7 @@ pytest = ">=4.6"
 [package.extras]
 testing = ["fields", "hunter", "process-tests", "six", "pytest-xdist", "virtualenv"]
 
+
 [[package]]
 name = "pytest-xdist"
 version = "3.0.2"
@@ -622,6 +623,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "flake8 
 lock-version = "1.1"
 python-versions = "^3.7.2,<4.0"
 content-hash = "5262387887b573f6d4dbda37bceee6a741546a28415bd0a9c97bf491d0dd37a7"
+
 
 [metadata.files]
 astroid = [

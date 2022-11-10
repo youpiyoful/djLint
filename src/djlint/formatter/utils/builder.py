@@ -21,8 +21,6 @@ class TreeBuilder(Tag):
     Formatting of the entire html is achieved by iterating the tags and calling tag.format().
     """
 
-
-
     def __init__(self, config, text):
         self.text = text
         self.config = config

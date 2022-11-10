@@ -8,7 +8,6 @@ from .attribute_tag import AttributeTag
 
 class AttributeTreeBuilder(AttributeTag):
 
-
     def __init__(self, config, text, parent_tag, indent_padding, level):
 
         self.text = text
@@ -23,6 +22,7 @@ class AttributeTreeBuilder(AttributeTag):
 
     def _reset(self):
         AttributeTag.__init__(self, self.ROOT_TAG_NAME, self.config, self.parent_tag, self.indent_padding)
+
         self.parser.reset()
         self.tagStack = []  # children of current tag
         self.current_tag = None
@@ -63,7 +63,7 @@ class AttributeTreeBuilder(AttributeTag):
         return self.current_tag
 
     def pushTag(self, tag, stack=True):
-        # print("pusing", tag.data, tag.type, tag.raw_attributes)
+
         if self.current_tag:
             self.current_tag.children.append(tag)
 
@@ -105,6 +105,7 @@ class AttributeTreeBuilder(AttributeTag):
         self.pushTag(tag, stack=False)
 
         return tag
+
 
     def handle_endtag(self, tag):
 

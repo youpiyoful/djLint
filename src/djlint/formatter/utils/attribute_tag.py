@@ -40,6 +40,7 @@ class AttributeTag:
         self.base_level = 0
         self.indent_padding = indent_padding
 
+
         self.namespace = None
         self.type: Optional[str] = None
 
@@ -185,10 +186,10 @@ class AttributeTag:
         """
         s = []
         for child in self.children:
-
             s.append(child.format(level))
 
         return "".join(s)
+
 
 
     def format(self, level=0):
@@ -210,6 +211,7 @@ class AttributeTag:
             # if "has-value-start" in self.properties:
             self.output += quote
 
+
         if self.type in [
             "starttag_curly_perc",
             "starttag_comment_curly_perc",
@@ -220,12 +222,14 @@ class AttributeTag:
 
         self.output += self.format_contents(level)
 
+
         self.output += self._space_after
 
         if self._has_trailing_quote:
             self.output += quote
 
         self.output += self._break_after
+
 
         if self.type in [
             "endtag_curly_perc",
