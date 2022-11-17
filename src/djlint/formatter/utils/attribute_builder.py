@@ -7,7 +7,6 @@ from .attribute_tag import AttributeTag
 
 
 class AttributeTreeBuilder(AttributeTag):
-
     def __init__(self, config, text, parent_tag, indent_padding, level):
 
         self.text = text
@@ -19,9 +18,10 @@ class AttributeTreeBuilder(AttributeTag):
         self._reset()
         self._feed()
 
-
     def _reset(self):
-        AttributeTag.__init__(self, self.ROOT_TAG_NAME, self.config, self.parent_tag, self.indent_padding)
+        AttributeTag.__init__(
+            self, self.ROOT_TAG_NAME, self.config, self.parent_tag, self.indent_padding
+        )
 
         self.parser.reset()
         self.tagStack = []  # children of current tag
@@ -94,8 +94,10 @@ class AttributeTreeBuilder(AttributeTag):
         return last_pop
 
     def handle_statement(self, tag):
+        # print("adding statement:", tag.type, tag.data)
         tag.parent = self.current_tag
-        tag.previous_tag = self._most_recent_tag
+        if self._most_recent_tag != self.current_tag:
+            tag.previous_tag = self._most_recent_tag
 
         if self._most_recent_tag:
             self._most_recent_tag.next_tag = tag
@@ -106,12 +108,12 @@ class AttributeTreeBuilder(AttributeTag):
 
         return tag
 
-
     def handle_endtag(self, tag):
-
+        # print("endtag", tag.type, self.current_tag.type)
         self._popToTag(tag.name, tag.namespace)
-        self.pushTag(tag, stack=False)
+        if tag.type not in [self.DOUBLE_QUOTE, self.SINGLE_QUOTE]:
+            self.pushTag(tag, stack=False)
 
-    def handle_name(self, data, props):
-        # handle strings and space
-        self.current_tag.data.append(data)
+    # def handle_name(self, data, props):
+    #     # handle strings and space
+    #     self.current_tag.data.append(data)

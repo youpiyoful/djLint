@@ -34,6 +34,7 @@
 
 
 import difflib
+import time
 from pathlib import Path
 
 from .formatter.indent import indent_html
@@ -45,7 +46,10 @@ def reformat_file(config: Config, this_file: Path) -> dict:
     """Reformat html file."""
     rawcode = this_file.read_text(encoding="utf8")
 
+    start = time.time()
     indented = indent_html(rawcode, config)
+
+    elapsed = round((time.time() - start) * 1000, 2)
     # indented = condense_html(indented, config)
 
     beautified_code = indented  # + "\n"
@@ -55,7 +59,7 @@ def reformat_file(config: Config, this_file: Path) -> dict:
         this_file.write_text(beautified_code, encoding="utf8")
 
     out = {
-        str(this_file): list(
+        f"{this_file} ({elapsed}ms)": list(
             difflib.unified_diff(rawcode.splitlines(), beautified_code.splitlines())
         )
     }

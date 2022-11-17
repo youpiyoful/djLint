@@ -7,16 +7,22 @@ Tag logic.
 Also formatting of attribute is done slightly differently than
 the html tag formatting.
 """
+import re
 from typing import Dict, List, Optional, Tuple, Union
 
 from HtmlElementAttributes import html_element_attributes
 
 from djlint.settings import Config
 
+from .tools import Fill, Group, Hardline, Indent, Line, Softline, list_builder
+
 
 class AttributeTag:
     # any override methods here.
     ROOT_TAG_NAME = "djlint-attribute"
+    SINGLE_QUOTE = "djlint-single-quote"
+    DOUBLE_QUOTE = "djlint-double-quote"
+
     def __init__(
         self,
         tag: str,
@@ -39,7 +45,8 @@ class AttributeTag:
         self.data: List[str] = []
         self.base_level = 0
         self.indent_padding = indent_padding
-
+        self.output = []
+        self.has_quoted_value = False
 
         self.namespace = None
         self.type: Optional[str] = None
@@ -57,16 +64,6 @@ class AttributeTag:
         if self.data:
             return self.data[0]
         return self.tag
-
-    @property
-    def _attribute_value_start(self):
-        if "has-value" in self.properties:
-            if 'has-value-start-double' in self.properties:
-                return "has-value-start-double"
-            if 'has-value-start-single' in self.properties:
-                return 'has-value-start-single'
-
-        return False
 
     def _previous_with_prop(self, prop):
 
@@ -86,72 +83,153 @@ class AttributeTag:
             return self.next_tag._next_with_prop(prop)
         return None
 
-    @property
-    def _is_in_attribute_value(self) -> bool:
-        # search for the previous attribute open
-        if self.previous_tag:
-            attribute_value_start = self.previous_tag._attribute_value_start
+    def _nested_quote_level(self, level=0):
 
-            if attribute_value_start:
-                # found a start tag, now make sure it was not closed.
-                # print(attribute_value_start, self._previous_with_prop(attribute_value_start).name, self._previous_with_prop(attribute_value_start).properties)
-                previous = self._previous_with_prop(attribute_value_start)
-                previous_props = previous.properties if previous else []
+        if self.parent:
+            if self.parent.type in [self.DOUBLE_QUOTE, self.SINGLE_QUOTE]:
+                level += 1
 
-                next = self._next_with_prop(attribute_value_start)
-                next_props = next.properties if next else []
-                # if previous and next:
-                #     print(self.name, previous.name, next.name)
-                if "has-value" in previous_props and "has-value" not in next_props:
-                    return True
-            return self.previous_tag._is_in_attribute_value
+            level += self.parent._nested_quote_level(level)
 
-        return False
+        return level
 
     @property
-    def _is_nested_attribute_value(self) -> bool:
-        if self._is_in_attribute_value is False:
-            return False
+    def _get_quote(self):
+        # check the nested level of the quote.
 
-        if self._has_trailing_quote:
-            # if myself has a closing quote, use it.
-            return False
+        if self.type not in [self.DOUBLE_QUOTE, self.SINGLE_QUOTE]:
+            return ""
 
-        if self.next_tag:
-            if ('has-value-start-single' in self.next_tag.properties or 'has-value-start-double' in self.next_tag.properties):
-                return True
-            return self.next_tag._is_nested_attribute_value
-        return False
+        level = self._nested_quote_level()
+
+        if level == 0:
+            return '"'
+        elif level == 1:
+            return "'"
+        elif level % 2 == 0:
+            return '"'
+        return "'"
 
     @property
-    def _has_trailing_quote(self) -> bool:
-        return (('has-value-start-double' in self.properties
-            or 'has-value-start-single' in self.properties
-            ) and 'has-value' not in self.properties)
+    def _has_leading_space(self) -> bool:
+        if self.previous_tag and self.previous_tag._has_trailing_space:
+            return True
+
+        # or if we are the first child of a parent w/ trailing space
+        if (
+            self.parent
+            and self.parent._has_trailing_space
+            and self.parent.children[0] == self
+        ):
+            return True
+
+    @property
+    def _has_trailing_space(self) -> bool:
+        return "has-trailing-space" in self.properties
+
+    @property
+    def _has_value(self) -> bool:
+        return "has-value" in self.properties
 
     @property
     def _break_before(self) -> bool:
-        if "has-trailing-space" in self.previous_tag.properties and self._is_in_attribute_value is False:
-            return "\n"
+        if (
+            "has-trailing-space" in self.previous_tag.properties
+        ):  # and self._is_in_attribute_value is False:
+            return ""  # return "\n"
 
         return ""
 
     @property
     def _break_after(self) -> str:
-        if "has-trailing-space" in self.properties and (self._is_in_attribute_value is False or self._has_trailing_quote):
+        if self.name == self.ROOT_TAG_NAME and self.children:
+            return Softline()
 
-            return "\n" + self.indent_padding * " " + " "
+    @property
+    def _space_before(self) -> str:
 
-        if "has-trailing-space" in self.properties and self.next_tag and not self._has_trailing_quote and not self._is_nested_attribute_value:
-            return " "
+        if (
+            self.parent
+            and self.parent.name == self.ROOT_TAG_NAME
+            and not self.previous_tag
+        ):
+            return Line()
 
-        return ""
+        if self._has_leading_space:
+
+            if self.previous_tag and self.previous_tag._has_trailing_space:
+                return ""
+            if (
+                self.parent
+                and self.parent.name in [self.SINGLE_QUOTE, self.DOUBLE_QUOTE]
+                and self.parent.previous_tag
+                and not self.parent.previous_tag._has_value
+            ):
+                return " "
+
+    def last_child(self):
+        if self.children:
+            return self.children[-1]
+
+        return None
 
     @property
     def _space_after(self) -> str:
-        # print(self.name)
-        if "has-trailing-space" in self.properties and self._is_nested_attribute_value:
-            return " "
+
+        print(self.name, self.properties)
+
+        if (
+            not self.next_tag
+            and self.tag != self.ROOT_TAG_NAME
+            and self.parent
+            and self.parent.name not in [self.SINGLE_QUOTE, self.DOUBLE_QUOTE]
+        ):
+            return Softline()
+
+        if self._has_trailing_space:
+            if (
+                self.parent
+                and self.parent.name in [self.SINGLE_QUOTE, self.DOUBLE_QUOTE]
+                and self.parent.previous_tag
+                and not self.parent.previous_tag._has_value
+            ):
+                # if (re.search(r"\s$", self._get_raw_data(), re.M)
+                #     or self.next_tag  and re.search(r"^\s", self.next_tag._get_raw_data(), re.M)):
+                #     return ""
+                return " "
+
+            if self.name[-1] in ["{", ":", ","]:
+                """
+                Keep nice formatting on spread out attributes.
+
+                attrib="{ this: true, that:false }"
+                         ^     ^     ^
+                """
+                return " "
+
+            if self.next_tag and self.next_tag.name[0] in ["}"]:
+                """
+                Keep nice formatting on spread out attributes.
+
+                attrib="{ this: true }"
+                                    ^
+                """
+                return " "
+
+            if self._nested_quote_level() < 1:
+                return Line()
+
+        if (
+            self.name in [self.SINGLE_QUOTE, self.DOUBLE_QUOTE]
+            and self.last_child()
+            and not self.last_child().next_tag
+        ):
+            # if the last item
+            return ""
+
+        if self.name in [self.SINGLE_QUOTE, self.DOUBLE_QUOTE]:
+            if self._nested_quote_level() < 1:
+                return Line()
 
         return ""
 
@@ -174,7 +252,12 @@ class AttributeTag:
             else tag
         )
 
-    def format_contents(self, level):
+    def _get_raw_data(self):
+        if self.data:
+            return " ".join(self.data)
+        return ""
+
+    def format_contents(self, level=0):
         """
         Return formatted output of current element children.
 
@@ -186,58 +269,39 @@ class AttributeTag:
         """
         s = []
         for child in self.children:
-            s.append(child.format(level))
+            formated = child.format()
+            s.extend(list_builder(formated))
 
-        return "".join(s)
+        return s
 
-
+    def appender(self, stuff):
+        self.output.extend(list_builder(stuff))
 
     def format(self, level=0):
 
-        self.output = ''
-        if self.name == self.ROOT_TAG_NAME and self.children:
-            self.output += " "
-        # print(self.type, self.name,self.properties)
-        # print(self.data, self.properties, self.parent_tag, len(self.children), (self.children[0].data if self.children else ""))
-        # if len(self.data) > 1:
-        #     raise ValueError("data is too long:", self.data)
+        # print(self.name, self.properties)
+        self.appender(self._space_before)
 
-        self.output += " ".join([self.__get_attribute_name(x) for x in self.data])
+        self.appender(" ".join([self.__get_attribute_name(x) for x in self.data]))
 
-        quote = "'" if self._is_nested_attribute_value else '"'
+        quote = self._get_quote
 
-        if "has-value" in self.properties:
-            self.output += "="
-            # if "has-value-start" in self.properties:
-            self.output += quote
+        if self._has_value:
+            self.appender("=")
 
+        self.appender(quote)
 
-        if self.type in [
-            "starttag_curly_perc",
-            "starttag_comment_curly_perc",
-            "starttag_curly_two_hash",
-            "starttag_curly_four",
-        ]:
-            level += 1
+        if self.tag in [self.SINGLE_QUOTE, self.DOUBLE_QUOTE]:
+            contents = Group()
+        else:
+            contents = Indent()
+        contents.appender(self.format_contents())
 
-        self.output += self.format_contents(level)
+        self.appender(contents)
+        self.appender(quote)
+        self.appender(self._space_after)
 
-
-        self.output += self._space_after
-
-        if self._has_trailing_quote:
-            self.output += quote
-
-        self.output += self._break_after
-
-
-        if self.type in [
-            "endtag_curly_perc",
-            "endtag_comment_curly_perc",
-            "endtag_curly_two_slash",
-            "endtag_curly_four_slash",
-        ]:
-            level -= 1
+        self.appender(self._break_after)
 
         return self.output
 

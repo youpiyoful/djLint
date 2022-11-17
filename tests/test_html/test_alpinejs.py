@@ -10,40 +10,43 @@ run:
 """
 # pylint: disable=C0116
 
+import pytest
+
 from src.djlint.formatter.indent import indent_html
 from tests.conftest import printer
 
-def test_alpine_js(basic_config) -> None:
-    source = (
-        '<div id="collapse"\n'
-        '     x-data="{ show: true }"\n'
-        '     x-show="show"\n'
-        '     x-transition.duration.500ms\n'
-        '     :disabled="!$store.userPreferences.deleteConfirm"\n'
-        '     @click="clicked=true">'
-        '</div>\n'
-    )
-    output =indent_html(source, basic_config)
-    printer(source,output)
+alpine_js_source = (
+    "<div\n"
+    '    id="collapse"\n'
+    '    x-data="{ show: true }"\n'
+    '    x-show="show"\n'
+    "    x-transition.duration.500ms\n"
+    '    :disabled="!$store.userPreferences.deleteConfirm"\n'
+    '    @click="clicked=true"\n'
+    "></div>\n"
+)
 
-    assert source == output
+nested_html_source = (
+    '<html lang="en">\n'
+    "    <body>\n"
+    "        <!-- x-data , x-text , x-html -->\n"
+    "        <div x-data=\"{key:' value', message:'hello <b>world</b> '}\">\n"
+    '            <p x-text="key"></p>\n'
+    '            <p x-html="message"></p>\n'
+    "        </div>\n"
+    "    </body>\n"
+    "</html>\n"
+)
+
+test_data = [
+    pytest.param(alpine_js_source, alpine_js_source, id="alpine_js"),
+    pytest.param(nested_html_source, nested_html_source, id="alpine_nested_html"),
+]
 
 
-def test_alpine_nested_html(basic_config) -> None:
-    source = (
-        '<html lang="en">\n'
-        '    <body>\n'
-        '        <!-- x-data , x-text , x-html -->\n'
-        '        <div x-data="{key:\'value\',message:\'hello <b>world</b> \'}">\n'
-        '            <p x-text="key"></p>\n'
-        '            <p x-html="message"></p>\n'
-        '        </div>\n'
-        '    </body>\n'
-        '</html>\n'
-    )
+@pytest.mark.parametrize("source,expected", test_data)
+def test_base(source, expected, basic_config):
+    output = indent_html(source, basic_config)
 
-    output =indent_html(source, basic_config)
-    printer(source,output)
-
-    assert source == output
-
+    printer(expected, output)
+    assert expected == output

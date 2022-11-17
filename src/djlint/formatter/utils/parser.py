@@ -12,6 +12,27 @@ from typing import Dict, List, Optional, Tuple
 from HtmlTemplateParser import Htp
 
 from .tag import Tag
+from .tools import (
+    CLOSE,
+    COMMENT,
+    COMMENT_AT_STAR,
+    COMMENT_CURLY_HASH,
+    CURLY_THREE,
+    CURLY_TWO,
+    CURLY_TWO_EXCAIM,
+    DOCTYPE,
+    ENDTAG_COMMENT_CURLY_PERC,
+    ENDTAG_CURLY_FOUR_SLASH,
+    ENDTAG_CURLY_PERC,
+    ENDTAG_CURLY_TWO_SLASH,
+    OPEN,
+    SLASH_CURLY_TWO,
+    STARTTAG_COMMENT_CURLY_PERC,
+    STARTTAG_CURLY_FOUR,
+    STARTTAG_CURLY_PERC,
+    STARTTAG_CURLY_TWO_HASH,
+    VOID,
+)
 
 
 class TemplateParser(Htp):
@@ -40,11 +61,12 @@ class TemplateParser(Htp):
             decl = re.sub(r"^doctype", "", decl, flags=re.I | re.M).strip()
 
             self.tag = Tag(
-                "doctype",
+                DOCTYPE,
                 self.config,
                 # parent=self.last_parent,
                 attributes=decl,
             )
+            self.tag.type = DOCTYPE
             self.tag.is_html = True
             self.tree.handle_decl(self.tag)
 
@@ -62,9 +84,9 @@ class TemplateParser(Htp):
         self.tag.is_html = True
 
         if not self.tag.is_void:
-            self.tag.type = "open"
+            self.tag.type = OPEN
         else:
-            self.tag.type = "void"
+            self.tag.type = VOID
 
         self.tree.handle_starttag(self.tag)
 
@@ -76,7 +98,7 @@ class TemplateParser(Htp):
             properties=props,
         )
 
-        self.tag.type = "starttag_curly_perc"
+        self.tag.type = STARTTAG_CURLY_PERC
 
         self.tree.handle_starttag(self.tag)
 
@@ -89,7 +111,7 @@ class TemplateParser(Htp):
             properties=props,
         )
         self.tag.set_profile("handlebars")
-        self.tag.type = "starttag_curly_four"
+        self.tag.type = STARTTAG_CURLY_FOUR
 
         self.tree.handle_starttag(self.tag)
 
@@ -102,7 +124,7 @@ class TemplateParser(Htp):
             properties=props,
         )
         self.tag.set_profile("handlebars")
-        self.tag.type = "starttag_curly_two_hash"
+        self.tag.type = STARTTAG_CURLY_TWO_HASH
 
         self.tree.handle_starttag(self.tag)
 
@@ -115,7 +137,7 @@ class TemplateParser(Htp):
             properties=props,
         )
 
-        self.tag.type = "starttag_comment_curly_perc"
+        self.tag.type = STARTTAG_COMMENT_CURLY_PERC
 
         self.tree.handle_starttag(self.tag)
 
@@ -126,7 +148,7 @@ class TemplateParser(Htp):
             attributes=attrs,
             properties=props,
         )
-        self.tag.type = "endtag_curly_perc"
+        self.tag.type = ENDTAG_CURLY_PERC
 
         self.tree.handle_endtag(self.tag)
 
@@ -137,29 +159,28 @@ class TemplateParser(Htp):
         # handlebars/mustache loop {{#name attributes}}{{/name}}
         self.tag = Tag(tag, self.config, properties=props)
         self.tag.set_profile("handlebars")
-        self.tag.type = "endtag_curly_two_slash"
+        self.tag.type = ENDTAG_CURLY_TWO_SLASH
         self.tree.handle_endtag(self.tag)
 
     def handle_endtag_curly_four_slash(self, tag, attrs, props):
         # handlebars raw close {{{{raw}}}}{{{{/raw}}}}
         self.tag = Tag(tag, self.config, attributes=attrs, properties=props)
         self.tag.set_profile("handlebars")
-        self.tag.type = "endtag_curly_four_slash"
+        self.tag.type = ENDTAG_CURLY_FOUR_SLASH
 
         self.tree.handle_endtag(self.tag)
 
     def handle_comment_curly_hash(self, data):
         # django/jinja comment
         tag = Tag(data, self.config)
-        tag.type = "comment_curly_hash"
-
+        tag.type = COMMENT_CURLY_HASH
 
         self.handle_statement(tag)
 
     def handle_comment_at_star(self, data):
         # c# razor pages comment
         tag = Tag(data, self.config)
-        tag.type = "comment_at_star"
+        tag.type = COMMENT_AT_STAR
 
         self.handle_statement(tag)
 
@@ -170,7 +191,7 @@ class TemplateParser(Htp):
             self.config,
             properties=props,
         )
-        self.tag.type = "endtag_comment_curly_perc"
+        self.tag.type = ENDTAG_COMMENT_CURLY_PERC
 
         self.tree.handle_endtag(self.tag)
 
@@ -179,7 +200,7 @@ class TemplateParser(Htp):
         tag = Tag(data, self.config, properties=props)
         tag.set_profile("handlebars")
         self.tag.set_profile("handlebars")
-        tag.type = "curly_two_exlaim"
+        tag.type = CURLY_TWO_EXCAIM
 
         self.tree.handle_statement(tag)
 
@@ -205,7 +226,7 @@ class TemplateParser(Htp):
         If the tag is not void, update the last sibling.
         """
         close_tag = Tag(tag, self.config)  # , parent=self.last_parent)
-        close_tag.type = "close"
+        close_tag.type = CLOSE
         close_tag.is_html = True
 
         if not close_tag.is_void:
@@ -221,14 +242,14 @@ class TemplateParser(Htp):
         # curly handles as data. build the tag and pass it to the
         # data processor.
         tag = Tag(data, self.config, attributes=attrs, properties=props)
-        tag.type = "curly_two"
+        tag.type = CURLY_TWO
 
         self.tree.handle_statement(tag)
 
     def handle_slash_curly_two(self, data, attrs):
         # handlebars/mustache inline raw block
         tag = Tag(data, self.config, attributes=attrs)
-        tag.type = "slash_curly_two"
+        tag.type = SLASH_CURLY_TWO
         self.tag.set_profile("handlebars")
         tag.set_profile("handlebars")
 
@@ -237,7 +258,7 @@ class TemplateParser(Htp):
     def handle_curly_three(self, data):
         # handlebars un-escaped html
         tag = Tag(data, self.config)
-        tag.type = "curly_three"
+        tag.type = CURLY_THREE
         self.tag.set_profile("handlebars")
         tag.set_profile("handlebars")
 
@@ -257,7 +278,7 @@ class TemplateParser(Htp):
             data,
             self.config,
         )
-        tag.type = "comment"
+        tag.type = COMMENT
         tag.is_html = True
 
         self.tree.handle_statement(tag)

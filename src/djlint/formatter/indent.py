@@ -2,7 +2,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from ..settings import Config
-from .utils import Tag, TemplateParser, TreeBuilder
+from .utils import Tag, TemplateParser, TreeBuilder, Writer
 
 """
 options needed > no
@@ -48,8 +48,8 @@ def indent_html(rawcode: str, config: Config):
     # output = p.close()
     output = p.format()
 
-
-    output = front_matter + ("").join(output)
+    # print(output)
+    # [print(x) for x in output]
+    output = front_matter + Writer(config).write(output)
 
     return output
-

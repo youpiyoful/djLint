@@ -11,8 +11,18 @@ While text continues, it is added to the same block.
 node type of text
 
 """
+import re
+
 from .parser import TemplateParser
 from .tag import Tag
+from .tools import (
+    ALL_CLOSE_TEMPLATE_TYPES,
+    ALL_OPEN_TEMPLATE_TYPES,
+    DATA_TAG_NAME,
+    HAS_TRAILING_BREAK,
+    HAS_TRAILING_SPACE,
+    ROOT_TAG_NAME,
+)
 
 
 class TreeBuilder(Tag):
@@ -29,7 +39,7 @@ class TreeBuilder(Tag):
         self._feed()
 
     def _reset(self):
-        Tag.__init__(self, self.ROOT_TAG_NAME, self.config)
+        Tag.__init__(self, ROOT_TAG_NAME, self.config)
         self.hidden = 1
         self.parser.reset()
 
@@ -45,7 +55,7 @@ class TreeBuilder(Tag):
         self.parser.feed(self.text)
         self.parser.close()
 
-        while self.current_tag.name != self.ROOT_TAG_NAME:
+        while self.current_tag.name != ROOT_TAG_NAME:
             self.popTag()
 
         self.endData()
@@ -83,9 +93,9 @@ class TreeBuilder(Tag):
 
             self.current_tag = self.tagStack[-1]
 
-    def _popToTag(self, name, namespace, inclusivePop=True):
+    def _popToTag(self, name, namespace, type, inclusivePop=True):
 
-        if name == self.ROOT_TAG_NAME:
+        if name == ROOT_TAG_NAME:
             # don't leave me!
             return
 
@@ -95,6 +105,17 @@ class TreeBuilder(Tag):
 
         for i in range(stack_size - 1, 0, -1):
             t = self.tagStack[i]
+
+            # we allow non standard html structure.
+            # if any prev tags are an open template type tag and the current tag is an html tag
+            # do not pop them.
+            if (
+                t.type in ALL_OPEN_TEMPLATE_TYPES
+                and type not in ALL_CLOSE_TEMPLATE_TYPES
+            ):
+                # last_pop="add-parent" # print('breaking')
+                break
+
             if (
                 name == t.name and namespace == t.namespace
             ):  # and t.type = type... curly=curly, html=html etc
@@ -111,43 +132,66 @@ class TreeBuilder(Tag):
         However, we track the closing tag otherwise as their maybe attributes or properties we need to use.
         """
         self.endData()
-        self._popToTag(tag.name, tag.namespace)
+        status = self._popToTag(tag.name, tag.namespace, tag.type)
 
-        if tag.is_html is False:
-            # but don't push to stack!
-            self.pushTag(tag, stack=False)
-
-    def handle_data(self, data):
-        if data.strip() == "":
-            self._most_recent_tag.raw_properties.append('has-trailing-space')
-            return self._most_recent_tag
-        if self._most_recent_tag.type == self.DATA_TAG_NAME:
-            self._most_recent_tag.data.append(data)
-
-            return self._most_recent_tag
-
-        tag = Tag(self.DATA_TAG_NAME, self.config)
-        tag.type =self.DATA_TAG_NAME
-        tag.data.append(data)
+        # this case is for closing html tags that are nested in template tags alone.
+        # if status == "add-parent":
         tag.parent = self.current_tag
+
         tag.previous_tag = self._most_recent_tag
         if self._most_recent_tag:
             self._most_recent_tag.next_tag = tag
+
+        self._most_recent_tag = tag
+
+        # if tag.is_html is False:
+        # but don't push to stack!
+        self.pushTag(tag, stack=False)
+
+    def handle_data(self, data):
+
+        # add prop to previous tag
+        if re.search(r"^\s", data.splitlines()[0], re.M):
+            self._most_recent_tag.raw_properties.append(HAS_TRAILING_BREAK)
+
+        if data.strip() == "":
+            return self._most_recent_tag
+
+        if self._most_recent_tag.type == DATA_TAG_NAME:
+            self._most_recent_tag.data.append(data.strip())
+
+            return self._most_recent_tag
+
+        tag = Tag(DATA_TAG_NAME, self.config)
+        tag.type = DATA_TAG_NAME
+        tag.data.append(data.strip())
+        tag.parent = self.current_tag
+
+        # add prop to current tag
+        if re.search(r"\s$", data.splitlines()[-1], re.M):
+            tag.raw_properties.append(HAS_TRAILING_BREAK)
+
+        if self._most_recent_tag != self.current_tag:
+            tag.previous_tag = self._most_recent_tag
+        if self._most_recent_tag:
+            self._most_recent_tag.next_tag = tag
+
+        self._most_recent_tag = tag
 
         self.pushTag(tag, stack=False)
 
         return tag
 
-
-    def handle_statement(self,tag):
+    def handle_statement(self, tag):
         self.endData()
         tag.parent = self.current_tag
         tag.previous_tag = self._most_recent_tag
         if self._most_recent_tag:
             self._most_recent_tag.next_tag = tag
 
-        self.pushTag(tag, stack=False)
+        self._most_recent_tag = tag
 
+        self.pushTag(tag, stack=False)
 
     def handle_decl(self, tag):
         self.endData()
@@ -160,6 +204,6 @@ class TreeBuilder(Tag):
 
         self.pushTag(tag)
         self.endData()
-        self._popToTag(tag.name, tag.namespace)
+        self._popToTag(tag.name, tag.namespace, tag.type)
 
         return tag

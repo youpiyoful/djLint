@@ -15,6 +15,8 @@ class AttributeParser(Atp):
     """Overrides from AttributeParser."""
 
     DATA_TAG_NAME = "djlint-data"
+    SINGLE_QUOTE = "djlint-single-quote"
+    DOUBLE_QUOTE = "djlint-double-quote"
 
     def __init__(self, config, parent_tag, indent_padding):
         super(AttributeParser, self).__init__()
@@ -81,21 +83,37 @@ class AttributeParser(Atp):
 
     def handle_comment_curly_hash(self, value):
         # django/jinja comment
-        tag = Tag(value, self.config, self.parent_tag,indent_padding=self.indent_padding,)
+        tag = Tag(
+            value,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+        )
         tag.type = "comment_curly_hash"
 
         self.handle_statement(tag, None)
 
     def handle_comment_curly_two_exclaim(self, value, props):
         # handlebars comment
-        tag = Tag(value, self.config,self.parent_tag, indent_padding=self.indent_padding,properties=props)
+        tag = Tag(
+            value,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+            properties=props,
+        )
         tag.type = "curly_two_exlaim"
 
         self.handle_statement(tag, None)
 
     def handle_comment_at_star(self, value):
         # c# razor pages comment
-        tag = Tag(value, self.config,self.parent_tag,indent_padding=self.indent_padding,)
+        tag = Tag(
+            value,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+        )
         tag.type = "comment_at_star"
 
         self.handle_statement(tag, None)
@@ -117,23 +135,40 @@ class AttributeParser(Atp):
 
     def handle_endtag_curly_two_slash(self, tag, props):
         # handlebars/mustache loop {{#name attributes}}{{/name}}
-        self.tag = Tag(tag, self.config,
-            self.parent_tag,indent_padding=self.indent_padding, properties=props)
+        self.tag = Tag(
+            tag,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+            properties=props,
+        )
         self.tag.type = "endtag_curly_two_slash"
 
         self.tree.handle_endtag(self.tag)
 
     def handle_slash_curly_two(self, tag, attrs):
         # handlebars/mustache inline raw block
-        tag = Tag(tag, self.config,
-            self.parent_tag,indent_padding=self.indent_padding, attributes=attrs)
+        tag = Tag(
+            tag,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+            attributes=attrs,
+        )
         tag.type = "slash_curly_two"
 
         self.tree.handle_statement(tag)
 
     def handle_endtag_curly_four_slash(self, tag, attrs, props):
         # handlebars raw close {{{{raw}}}}{{{{/raw}}}}
-        self.tag = Tag(tag, self.config,self.parent_tag, indent_padding=self.indent_padding,attributes=attrs, properties=props)
+        self.tag = Tag(
+            tag,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+            attributes=attrs,
+            properties=props,
+        )
         self.tag.type = "endtag_curly_four_slash"
         self.tree.handle_endtag(self.tag)
 
@@ -154,13 +189,25 @@ class AttributeParser(Atp):
 
     def handle_curly_three(self, value):
         # handlebars un-escaped html
-        tag = Tag(value, self.config,self.parent_tag,indent_padding=self.indent_padding,)
+        tag = Tag(
+            value,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+        )
         tag.type = "curly_three"
 
         self.tree.handle_statement(tag)
 
     def handle_curly_two(self, tag, attrs, props):
-        tag = Tag(tag, self.config,self.parent_tag,indent_padding=self.indent_padding, attributes=attrs, properties=props)
+        tag = Tag(
+            tag,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+            attributes=attrs,
+            properties=props,
+        )
         tag.type = "curly_two"
         self.tree.handle_statement(tag)
 
@@ -169,8 +216,15 @@ class AttributeParser(Atp):
         Any free text. If the attribute
         has a value following, there will be a property "has-value".
         """
-        tag = Tag(self.DATA_TAG_NAME,self.config,self.parent_tag, indent_padding=self.indent_padding, properties=props)
-        tag.type=self.DATA_TAG_NAME
+        # print("name:", name)
+        tag = Tag(
+            self.DATA_TAG_NAME,
+            self.config,
+            self.parent_tag,
+            indent_padding=self.indent_padding,
+            properties=props,
+        )
+        tag.type = self.DATA_TAG_NAME
         tag.data.append(name)
 
         self.tree.handle_statement(tag)
@@ -179,10 +233,18 @@ class AttributeParser(Atp):
         """
         This will be a quote character where an attribute value starts/ends.
         """
-        if self.get_element_text() == "\"":
-            self.tree._most_recent_tag.properties.append("has-value-start-double")
+        if self.get_element_text() == '"':
+            self.tag = Tag(self.DOUBLE_QUOTE, self.config, self.parent_tag)
+            self.tag.type = self.DOUBLE_QUOTE
+
         else:
-            self.tree._most_recent_tag.properties.append("has-value-start-single")
+            self.tag = Tag(self.SINGLE_QUOTE, self.config, self.parent_tag)
+            self.tag.type = self.SINGLE_QUOTE
+
+        if self.tree.current_tag.type == self.tag.type:
+            self.tree.handle_endtag(self.tag)
+        else:
+            self.tree.handle_starttag(self.tag)
 
     def handle_space(self):
         """

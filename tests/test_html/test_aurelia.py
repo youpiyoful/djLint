@@ -19,22 +19,23 @@ run::
 
 """
 # pylint: disable=C0116
-from typing import TextIO
+import pytest
 
-from click.testing import CliRunner
+from src.djlint.formatter.indent import indent_html
+from tests.conftest import printer
 
-from tests.conftest import reformat
+test_data = [
+    pytest.param(
+        ("<template>\n" '    <i class.bind="icon"></i>\n' "</template>\n"),
+        ("<template>\n" '    <i class.bind="icon"></i>\n' "</template>\n"),
+        id="aurelia",
+    ),
+]
 
 
-def test_aurelia(runner: CliRunner, tmp_file: TextIO) -> None:
+@pytest.mark.parametrize("source,expected", test_data)
+def test_base(source, expected, basic_config):
+    output = indent_html(source, basic_config)
 
-    output = reformat(
-        tmp_file,
-        runner,
-        b"""<template>
-    <i class.bind="icon"></i>
-</template>
-""",
-    )
-
-    assert output.exit_code == 0
+    printer(expected, output)
+    assert expected == output
