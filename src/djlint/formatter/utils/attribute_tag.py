@@ -176,8 +176,6 @@ class AttributeTag:
     @property
     def _space_after(self) -> str:
 
-        print(self.name, self.properties)
-
         if (
             not self.next_tag
             and self.tag != self.ROOT_TAG_NAME

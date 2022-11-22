@@ -22,7 +22,7 @@ future tags when formattings.
 def indent_html(rawcode: str, config: Config):
 
     ## pop front mater
-    rawcode = rawcode.strip()
+    # rawcode = rawcode.strip()
 
     front_matter = re.search(r"^---[\s\S]+?---\S*", rawcode)
 
@@ -48,7 +48,7 @@ def indent_html(rawcode: str, config: Config):
     # output = p.close()
     output = p.format()
 
-    # print(output)
+    print(output)
     # [print(x) for x in output]
     output = front_matter + Writer(config).write(output)
 

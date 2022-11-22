@@ -409,10 +409,18 @@ class Tag:
 
     @property
     def open_tag_closing(self) -> str:
+        # print(self.type)
         if self.tag in [ROOT_TAG_NAME, DATA_TAG_NAME]:
             return ""
 
         if self.type in ALL_CLOSE_TYPES:
+            return ""
+
+        if (
+            self.next_tag
+            and self.next_tag.needs_to_borrow_prev_closing_tag_end_marker
+            and self.is_void is False
+        ):
             return ""
 
         return self.__get_tag_closing()
@@ -499,7 +507,6 @@ class Tag:
             return ""
 
         if self.needs_to_borrow_prev_closing_tag_end_marker:
-            print("here")
             return self.previous_tag.__get_tag_closing()
 
         return ""
@@ -593,6 +600,7 @@ class Tag:
 
         return (
             self.is_script
+            or not self.is_html
             # or not display.startswith("table")
             # and display not in ["block", "list-item", "inline-block"]
             or self.is_indentation_sensitive
@@ -948,16 +956,22 @@ class Tag:
         ):
             return ""
 
+        if self.is_dangling_space_sensitive and self.has_trailing_space is False:
+            return ""
+
         return Softline()
 
     @property
     def needs_to_borrow_prev_closing_tag_end_marker(self) -> bool:
+        if self.previous_tag:
+            print(self.tag, self.previous_tag, self.is_leading_space_sensitive)
         return (
             self.previous_tag
             and self.previous_tag.tag != DOCTYPE
             and self.previous_tag.tag != DATA_TAG_NAME
             and self.previous_tag.type not in [STARTTAG_CURLY_PERC]
             and self.is_leading_space_sensitive
+            and self.type != CLOSE  # closing tags are not leading sensitive.
             and not self.has_leading_space
         )
 
@@ -979,13 +993,44 @@ class Tag:
         ):
             # print("hardline between children 2:", self.type, self.tag, " and ", self.next_tag.type, self.next_tag.tag)
             return Hardline()
+
+        if self.is_dangling_space_sensitive and (
+            self.has_trailing_space or self.has_trailing_breaks
+        ):
+            # line will enforce either a break or a space.
+            return Line()
+
+        if (
+            self.is_void
+            and self.next_tag
+            and not self.next_tag.is_dangling_space_sensitive
+        ):
+            return Hardline()
+
+        if not self.is_dangling_space_sensitive and self.type != CLOSE:
+            return Softline()
+
         return ""
+
+    # def print_line_after(self) -> str:
+
+    #     if self.is_dangling_space_sensitive and (self.has_trailing_space or self.has_trailing_breaks):
+    #         return Hardline()
+
+    #     if not self.is_dangling_space_sensitive:
+    #         return Softline()
+    #     return ""
 
     def print_line_after_children(self) -> str:
         # this function is only for the LAST child
         # if not the last child, then get out.
         if not self.last_child():
             return ""
+
+        if self.tag == ROOT_TAG_NAME:
+            # always end the file with a hard line break.
+            return Hardline()
+
         if self.type in [OPEN, COMMENT] and not self.children:
             return ""
 
@@ -1009,7 +1054,6 @@ class Tag:
             return ""
 
         if self.should_hug_content:
-
             return ""
 
         if (
@@ -1031,6 +1075,14 @@ class Tag:
             return ""
 
         if self.type == DATA_TAG_NAME:
+            return ""
+
+        # skip dangling
+        if (
+            self.is_dangling_space_sensitive
+            and self.last_child()
+            and not self.last_child().has_trailing_space
+        ):
             return ""
 
         # print("softline after children:", self.type, self.tag)
@@ -1095,6 +1147,7 @@ class Tag:
         # print(self.type, (self.parent.type if self.parent else None))
         # print(self.previous_tag.type if self.previous_tag else None )
         # print([self.previous_tag_close_tag_closing, self.open_tag_opening, self.open_tag_closing])
+        # print(self.tag, self.is_dangling_space_sensitive, self.has_leading_space, self.has_trailing_space)
         self.appender(
             Group(
                 [
@@ -1104,6 +1157,9 @@ class Tag:
                 ]
             )
         )
+
+        # if self.is_void:
+        #     self.appender(self.print_line_before_children())
 
         if not self.is_void and self.tag != DATA_TAG_NAME:
             contents = Indent()
@@ -1115,6 +1171,9 @@ class Tag:
             self.appender(contents)
 
             self.appender(self.print_line_after_children())
+
+        # if self.is_void:
+        #     self.appender(self.print_line_after())
 
         if self.tag == DATA_TAG_NAME and self.data:
             self.appender(Fill(self.data))

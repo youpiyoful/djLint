@@ -75,6 +75,7 @@ class Writer:
                 #     # only add indent if there is another sibling.
                 #     indent = self.get_indent()
                 # if doc[-1:] and doc[-1] != "\n":
+                # print(soft_break_type)
                 doc += element.resolve(
                     break_type=soft_break_type, indent=indent
                 )  # + f"Softline-{type(parent)}-{type(previous_element)}-{self.indent}\n"

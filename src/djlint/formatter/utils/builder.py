@@ -73,7 +73,11 @@ class TreeBuilder(Tag):
 
         self._most_recent_tag = tag
 
-        self.pushTag(tag)
+        # don't stack void tags
+        if tag.is_void:
+            self.pushTag(tag, stack=False)
+        else:
+            self.pushTag(tag)
 
         return tag
 
@@ -151,10 +155,11 @@ class TreeBuilder(Tag):
     def handle_data(self, data):
 
         # add prop to previous tag
-        if re.search(r"^\s", data.splitlines()[0], re.M):
+        if re.match(r"\s*\n", data, re.M):
             self._most_recent_tag.raw_properties.append(HAS_TRAILING_BREAK)
 
         if data.strip() == "":
+            self._most_recent_tag.raw_properties.append(HAS_TRAILING_SPACE)
             return self._most_recent_tag
 
         if self._most_recent_tag.type == DATA_TAG_NAME:
@@ -168,7 +173,7 @@ class TreeBuilder(Tag):
         tag.parent = self.current_tag
 
         # add prop to current tag
-        if re.search(r"\s$", data.splitlines()[-1], re.M):
+        if len(data.rstrip()) != len(data):
             tag.raw_properties.append(HAS_TRAILING_BREAK)
 
         if self._most_recent_tag != self.current_tag:

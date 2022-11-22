@@ -235,6 +235,7 @@ ALL_OPEN_TEMPLATE_TYPES = [
 ALL_COMMENT_TYPES = [COMMENT, COMMENT_CURLY_HASH, COMMENT_AT_STAR]
 ALL_STATEMENT_TYPES = [CURLY_TWO_EXCAIM, CURLY_TWO, SLASH_CURLY_TWO, CURLY_THREE]
 
+# property values must match html-attribute-formatter prop names
 HAS_TRAILING_SPACE = "has-trailing-space"
 HAS_TRAILING_BREAK = "has-trailing-break"
 SPACELESS_LEFT_DASH = "spaceless-left-dash"
